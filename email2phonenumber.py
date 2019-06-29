@@ -568,7 +568,11 @@ def getPossiblePhoneNumbers(maskedPhone):
 			cacheValidBlockNumbers(state, areacode)
 		
 		if maskedPhone[6] == 'X': # Check for available block numbers for that area code and exchange
-			blockNumbers = poolingCache[areacode][exchange]['blockNumbers']
+			if areacode in poolingCache and exchange in poolingCache[areacode]:
+				blockNumbers = poolingCache[areacode][exchange]['blockNumbers']
+			else:
+				blockNumbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+			
 		else: # User provided blocknumber
 			if areacode in poolingCache and exchange in poolingCache[areacode] and maskedPhone[6] not in poolingCache[areacode][exchange]['blockNumbers']: # User provided invalid block number
 				blockNumbers = []
