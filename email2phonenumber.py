@@ -7,7 +7,6 @@ import sys
 import os
 import time
 import zipfile
-import multiprocessing
 import random
 import urllib
 from itertools import product
@@ -41,12 +40,15 @@ def startBruteforcing(phoneNumbers, victimEmail, quietMode, verbose):
 		getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose)
 	else:
 		getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose)
+		getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose)
 
 
 # Uses Amazon to obtain masked email by resetting passwords using phone numbers
 def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 	global userAgents
 	global proxyList
+
+	print "Using Amazon to find victim's phone number..."
 
 	emailRegex = "[a-zA-Z0-9]\**[a-zA-Z0-9]@[a-zA-Z0-9]+\.[a-zA-Z0-9]+"
 	possibleNumberFound = False
@@ -190,6 +192,8 @@ def getMaskedEmailWithAmazon(phoneNumbers, victimEmail, verbose):
 def getMaskedEmailWithTwitter(phoneNumbers, victimEmail, verbose):
 	global userAgents
 	global proxyList
+
+	print "Using Twitter to find victim's phone number..."
 
 	possibleNumberFound = False
 	emailRegex = "[a-zA-Z0-9]\**[a-zA-Z0-9]@[a-zA-Z0-9]+\.[a-zA-Z0-9]+"
