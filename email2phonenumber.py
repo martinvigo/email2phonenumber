@@ -396,13 +396,13 @@ def scrapeEbay(email):
 				proxies = proxy,
 				verify = verifyProxy)
 
-	first3 = ""
+	first1 = ""
 	last2 = ""
-	regexOutput = re.search("text you at ([0-9]{3})-xxx-xx([0-9]{2})", response.text)
+	regexOutput = re.search("text you at ([0-9]{1})xx-xxx-xx([0-9]{2})", response.text)
 	if regexOutput:
 		if regexOutput.group(1):
-			first3 = regexOutput.group(1)
-			print GREEN + "Ebay reports that the first 3 digits are: " + first3 + ENDC
+			first1 = regexOutput.group(1)
+			print GREEN + "Ebay reports that the first digit is: " + first1 + ENDC
 		if regexOutput.group(2):
 			last2 = regexOutput.group(2)
 			print GREEN + "Ebay reports that the last 2 digits are: " + last2 + ENDC
