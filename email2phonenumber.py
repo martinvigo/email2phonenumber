@@ -29,7 +29,7 @@ userAgents = [	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KH
 				"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0)",
 				"Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.65 Safari/537.36"]
 
-proxyList = False
+proxyList = []
 verifyProxy = False
 poolingCache = {} # To cache results from nationalpooling website and save bandwith
 
@@ -552,6 +552,7 @@ def getPossiblePhoneNumbers(maskedPhone):
 
 	archive = zipfile.ZipFile('./allutlzd.zip', 'r')
 	file = archive.read('allutlzd.txt')
+	archive.close()
 
 	assignedRegex = '\s[0-9A-Z\s]{4}\t.*\t[A-Z\-\s]+\t[0-9\\]*[\t\s]+AS' # Only assigned area codes and exchanges
 	areacodeExchangeRegex = re.sub("X", "[0-9]{1}", "(" + maskedPhone[:3] + "-" + maskedPhone[3:6] + ")") # Area code + exchange 
@@ -638,13 +639,18 @@ def cacheValidBlockNumbers(state, areacode):
 
 
 
-def setProxyList(fileHandler):
+def setProxyList():
 	global proxyList
 
-	proxyList = []
+	f = open(args.proxies, "r")
+	if not f.mode == 'r': 
+		f.close()
+		exit(RED + "Could not read file " + args.proxies + ENDC)
+
 	fileContent = f.read()
 	fileContent = filter(None, fileContent) # Remove last \n if needed
 	proxyListUnformatted = fileContent.split("\n")
+	f.close()
 
 	for proxyUnformatted in proxyListUnformatted:
 		separatorPosition = proxyUnformatted.find("://")
@@ -681,9 +687,7 @@ vars(args)["action"] = sys.argv[1] # Add missing param
 
 if args.action=="scrape":
 	if args.proxies:
-		f = open(args.proxies, "r")
-		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
-		setProxyList(f)
+		setProxyList()
 
 	startScraping(args.email, args.quiet)
 
@@ -692,15 +696,14 @@ elif args.action=="generate":
 		exit(RED + "You need to pass a US phone number masked as in: 555XXX1234" + ENDC)
 
 	if args.proxies:
-		f = open(args.proxies, "r")
-		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
-		setProxyList(f)
+		setProxyList()
 
 	possiblePhoneNumbers = getPossiblePhoneNumbers(args.mask)
 	if args.file:
 		with open(args.file, 'w') as f:
 			f.write('\n'.join(possiblePhoneNumbers))
 		print GREEN + "Dictionary created successfully at " + os.path.realpath(f.name) + ENDC
+		f.close()
 
 	else:
 		print GREEN + "There are " + str(len(possiblePhoneNumbers)) + " possible numbers" + ENDC
@@ -721,15 +724,16 @@ elif args.action=="bruteforce":
 		possiblePhoneNumbers = getPossiblePhoneNumbers(args.mask)
 	else:
 		f = open(args.file, "r")
-		if not f.mode == 'r': exit(RED + "Could not read file " + args.file + ENDC)
+		if not f.mode == 'r': 
+			f.close()
+			exit(RED + "Could not read file " + args.file + ENDC)
 		fileContent = f.read()
 		fileContent = filter(None, fileContent) # Remove last \n if needed
 		possiblePhoneNumbers = fileContent.split("\n")
+		f.close()
 	
 	if args.proxies:
-		f = open(args.proxies, "r")
-		if not f.mode == 'r': exit(RED + "Could not read file " + args.proxies + ENDC)
-		setProxyList(f)
+		setProxyList()
 
 	startBruteforcing(possiblePhoneNumbers, args.email, args.quiet, args.verbose)
 
