@@ -2,6 +2,7 @@
 email2phonenumber is an OSINT tool that allows you to obtain a target's phone number just by having his email address.
 
 For full details check: [https://www.martinvigo.com/email2phonenumber](https://www.martinvigo.com/email2phonenumber)
+
 Demo: [https://www.youtube.com/watch?v=dfvqhDUn81s](https://www.youtube.com/watch?v=dfvqhDUn81s)
 
 ## Basic info
