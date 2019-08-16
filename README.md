@@ -18,7 +18,7 @@ email2phonenumber was developed on Python 2.x
 You will need couple 3rd party libraries: BeautifulSoup and requests. These can be easely installed with pip
 
 ```
-pip install BeautifulSoup requests
+pip install beautifulsoup4 requests
 ```
 
 ## Usage
