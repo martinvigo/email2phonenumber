@@ -13,8 +13,7 @@ from bs4 import BeautifulSoup
 import logging
 
 # Basic configuration for logging
-logging.basicConfig(
-    format='%(message)s')
+logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
