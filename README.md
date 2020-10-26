@@ -13,7 +13,7 @@ This tool helps automate discovering someone's phone number by abusing password 
 * "bruteforce" - iterates over a list of phone numbers and initiates password reset on different websites to obtain associated masked emails and correlate it to the victim's one
 
 ## Setup
-email2phonenumber was developed on Python 2.x
+email2phonenumber was developed on Python 3.x
 
 You will need couple 3rd party libraries: BeautifulSoup and requests. These can be easely installed with pip
 
