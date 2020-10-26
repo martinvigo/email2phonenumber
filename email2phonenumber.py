@@ -602,7 +602,7 @@ def scrape_last_pass(email):
                 GREEN, str(len(regex_output.group(2).replace("-", ""))), ENDC)
         else:
             logger.info(
-                "%sLastpass reports a non US phone number %s", GREEN, ENDC)
+                "%sLastpass reports a US phone number %s", GREEN, ENDC)
             logger.info(
                 "%sLastpass reports that the length of the phone number (without country code) is %s digits %s",
                 GREEN, str(len(regex_output.group(2).replace("-", ""))), ENDC)
