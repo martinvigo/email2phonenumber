@@ -5,6 +5,8 @@ For full details check: [https://www.martinvigo.com/email2phonenumber](https://w
 
 Demo: [https://www.youtube.com/watch?v=dfvqhDUn81s](https://www.youtube.com/watch?v=dfvqhDUn81s)
 
+***IMPORTANT:*** *email2phonenumber is a proof-of-concept tool I wrote during my research on new OSINT methodologies to obtain a target's phone number. Please check out my newer tool "[Phonerator](https://www.martinvigo.com/tools/phonerator/)", which is mantained and focuses on the novel aspect of the research, generating valid phone numbers. [See more details.](https://www.martinvigo.com/https://www.martinvigo.com/phonerator-an-advanced-valid-phone-number-generator/)*
+
 ## Basic info
 This tool helps automate discovering someone's phone number by abusing password reset design weaknesses and publicly available data. It supports 3 main functions:
 
