@@ -7,7 +7,8 @@ Demo: [https://www.youtube.com/watch?v=dfvqhDUn81s](https://www.youtube.com/watc
 
 ***IMPORTANT:*** *email2phonenumber is a proof-of-concept tool I wrote during my research on new OSINT methodologies to obtain a target's phone number. The supported services (Ebay, Lastpass, Amazon and Twitter) have long added protections to protect from these type of scraping like having to receive a code over email first or simply adding captchas. There are of course many other sites that are still leaking phone number digits but I am focused on other research projects. Feel free to submit pull request if you want to add support for new sites.
 
-Please check out my newer tool "[Phonerator](https://www.martinvigo.com/tools/phonerator/)", which is maintained and focuses on the novel aspect of this research, generating valid phone numbers. [See more details.](https://www.martinvigo.com/phonerator-an-advanced-valid-phone-number-generator/). There is also a small OSINT challenge in there* ;)
+Please check out my newer tool "[Phonerator](https://www.martinvigo.com/tools/phonerator/)", which is maintained and focuses on the novel aspect of this research, generating valid phone numbers. 
+[See more details](https://www.martinvigo.com/phonerator-an-advanced-valid-phone-number-generator/). There is also a small OSINT challenge in there... ;)
 
 ## Basic info
 This tool helps automate discovering someone's phone number by abusing password reset design weaknesses and publicly available data. It supports 3 main functions:
