@@ -40,5 +40,12 @@ Find target's phone number by resetting passwords on websites that do not alert 
 ```
 python3 email2phonenumber.py bruteforce -m 555XXX1234 -e target@email.com -p /tmp/proxies.txt -q
 ```
+
+## Demo video
+[![email2phonenumber demo video](https://img.youtube.com/vi/dfvqhDUn81s/0.jpg)](https://www.youtube.com/watch?v=dfvqhDUn81s)
+
+## Tool presentation at BSides Las Vegas 2019
+[![Tool presentation at Bsides Las Vegas 2019](https://img.youtube.com/vi/1zssBR85vDA/0.jpg)](https://www.youtube.com/watch?v=1zssBR85vDA)
+
 ## Authors
 Martin Vigo - @martin_vigo - [martinvigo.com](https://www.martinvigo.com)
