@@ -589,7 +589,7 @@ def scrape_last_pass(email):
     )
     last_two_digits = ""
     regex_output = re.search(
-        "We sent an SMS with a verification code to .*>(\+?)(.+([0-9]{2}))<\/strong>", response.text)
+        r"We sent an SMS with a verification code to .*>(\+?)(.+([0-9]{2}))<\/strong>", response.text)
     if regex_output and regex_output.group(3):
         last_two_digits = regex_output.group(3)
         logger.info("%sLastpass reports that the last 2 digits are: %s %s",
